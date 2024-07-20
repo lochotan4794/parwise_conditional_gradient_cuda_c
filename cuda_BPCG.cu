@@ -164,7 +164,7 @@ __host__ __device__ inline static void gradient_function(int numCoords,
 
 /*----< euclid_dist_2() >----------------------------------------------------*/
 /* square of Euclid distance between two multi-dimensional points            */
-__host__ __device__ void local_linear_minimization_oracle(int numCoords, int numObjs, float *gradient, float **cache, float *res)// [numCoords][numObjs]
+__host__ __device__ void local_linear_minimization_oracle(int numCoords, int numObjs, float *gradient, float **cache, float *res, int N)// [numCoords][numObjs]
                                                      
 {
     int i;
@@ -201,6 +201,7 @@ __host__ __device__ inline static void bpcg_optimizer(float* x0, int maxIter, cu
     int number_drop;
     size_t size = dim * sizeof(float);
     int vertex_added = 0;
+
     // Allocate input vectors h_A and h_B in host memory
     float* gradient = (float*)malloc(size);
     float* d_FW = (float*)malloc(size);
@@ -232,6 +233,8 @@ __host__ __device__ inline static void bpcg_optimizer(float* x0, int maxIter, cu
     {
         /* code */
         gradient_function(numCoords, numObjs, objects, mu, x_t,  d_grad );
+
+        __syncthreads();
 
         cudaMemset(dd_FW, 0, dim);
 
@@ -312,6 +315,8 @@ __host__ __device__ inline static void bpcg_optimizer(float* x0, int maxIter, cu
         update_x<<<1, N>>>(cuda_cache *cache, float *x_t, float step);
 
         primal_function(x_t, numCoords, objects, &primal);
+
+        __syncthreads();
 
         i = i + 1;
 

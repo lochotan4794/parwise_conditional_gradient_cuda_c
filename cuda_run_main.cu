@@ -150,11 +150,12 @@ int main(int argc, char **argv) {
     dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
     dim3 dimGrid(B.width / dimBlock.x, A.height / dimBlock.y);
 
-    bpcg_optimizer(x0, maxIter, cache, numCoords, x_star);
+    int N = numObjs;
 
-    // free(objects[0]);
+    bpcg_optimizer(x0, maxIter, cache, numCoords, x_star, N);
 
-    // free(objects);
+    free(objects[0]);
+    free(objects);
 
     // /* output: the coordinates of the cluster centres ----------------------*/
     // file_write(filename, numClusters, numObjs, numCoords, clusters, membership);
