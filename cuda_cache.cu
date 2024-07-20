@@ -3,29 +3,60 @@
 typedef struct 
 {
     /* data */
-    float **coord;
-    int id;
-} vertex;
-
-typedef struct 
-{
-    /* data */
-    vertex *S;
+    float **S;
     int *alpha;
+    int *cacheId;
     int len;
+
 } cuda_cache;
+
+
 
 /*----< euclid_dist_2() >----------------------------------------------------*/
 /* square of Euclid distance between two multi-dimensional points            */
-__host__ __device__ void remove_from_cache(int id)
+__host__ __device__ void remove_from_cache(int id, cuda_cache *cache)
 {
-
+    cache->alpha[id] = 0;
 }
 
 /*----< euclid_dist_2() >----------------------------------------------------*/
 /* square of Euclid distance between two multi-dimensional points            */
-__host__ __device__ void update_alpha(cuda_cache *cache, float *coord, float alpha, int id)
+__host__ __device__ void set_alpha(int id, cuda_cache *cache, float alpha)
 {
+    cache->alpha[id] = alpha;
+}
+
+
+/*----< euclid_dist_2() >----------------------------------------------------*/
+/* square of Euclid distance between two multi-dimensional points            */
+__host__ __device__ void add_cache(int id, cuda_cache *cache, float alpha, float *v)
+{
+    float scale = 1 - alpha;
+    cache->alpha[id] = alpha;
+    int i;
+
+    for(i=0;i< cache.len ;i++)
+    {
+        cache.alpha[i] = cache.alpha[i]  * scale;
+    }
+
+    cache->len = cache->len + 1;
+    int len = cache.len;
+
+    float* ptr = (float*)malloc(sizeof(float*)*len);
+    ptr[len] = v;
+    memcpy(ptr, cache.S, len - 1);
+    cache.S = ptr;
+
+    int* alphaPtr = (int*)malloc(sizeof(int*)*len);
+    alphaPtr[len] = alpha;
+    memcpy(alphaPtr, cache.alpha, len - 1);
+    cache.alpha = alphaPtr;
+
+    int* idCache = (int*)malloc(sizeof(int*)*len);
+    idCache[len] = id;
+    memcpy(idCache, cache.cacheId, len - 1);
+    cache.cacheId = idCache;
 
 }
 
@@ -37,7 +68,7 @@ __host__ __device__ int in_cache(cuda_cache cache, int id)
     int i;
     for (i=0; i<maxId;i++)
     {
-        if (cache.S[i].id == id)
+        if (cache.cacheId[i] == id)
         {
             return id;
         }
@@ -45,13 +76,3 @@ __host__ __device__ int in_cache(cuda_cache cache, int id)
     return -1;
 }
 
-/*----< euclid_dist_2() >----------------------------------------------------*/
-/* square of Euclid distance between two multi-dimensional points            */
-__host__ __device__ void add_to_cache(cuda_cache *cache, float *coord, float alpha, int id)
-{
-    int maxId = cache.len + 1;
-    vertex v = (vertex*)malloc(vertex);
-    v.coord= coord;
-    v.id=id;
-    cache.S[maxId] = v;
-}

@@ -50,6 +50,10 @@
 int      _debug;
 #include "BPCG.h"
 
+
+// Thread block size
+#define BLOCK_SIZE 16
+
 /*---< usage() >------------------------------------------------------------*/
 static void usage(char *argv0, float threshold) {
     char *help =
@@ -113,6 +117,7 @@ int main(int argc, char **argv) {
 
     /* read data points from file ------------------------------------------*/
     objects = file_read(isBinaryFile, filename, &numObjs, &numCoords);
+
     if (objects == NULL) exit(1);
 
     /* start the timer for the core computation -----------------------------*/
@@ -123,19 +128,40 @@ int main(int argc, char **argv) {
 
     float *x_star;
 
-    primals = bpcg_optimizer(objects, numCoords, numObjs, numClusters, threshold,
-                          membership, &loop_iterations, x_star);
+    float *x0;
 
-    free(objects[0]);
-    free(objects);
+    int maxIter = 10;
 
-    /* output: the coordinates of the cluster centres ----------------------*/
-    file_write(filename, numClusters, numObjs, numCoords, clusters,
-               membership);
+    cuda_cache cache;
 
-    free(membership);
-    free(clusters[0]);
-    free(clusters);
+    cache.len = 1; 
+
+    cache.cacheId = 0;
+
+    size_t size =  numCoords * sizeof(float);
+
+    float *d=new float[numObjs];
+
+    cudaMalloc(&cache.S, size);
+
+    cudaMemcpy(&cache.S, d, size, cudaMemcpyHostToDevice);
+
+    // Invoke kernel
+    dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
+    dim3 dimGrid(B.width / dimBlock.x, A.height / dimBlock.y);
+
+    bpcg_optimizer(x0, maxIter, cache, numCoords, x_star);
+
+    // free(objects[0]);
+
+    // free(objects);
+
+    // /* output: the coordinates of the cluster centres ----------------------*/
+    // file_write(filename, numClusters, numObjs, numCoords, clusters, membership);
+
+    // free(membership);
+    // free(clusters[0]);
+    // free(clusters);
 
     return(0);
 }

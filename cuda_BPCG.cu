@@ -5,55 +5,77 @@
 
 /*----< euclid_dist_2() >----------------------------------------------------*/
 /* square of Euclid distance between two multi-dimensional points            */
-__host__ __device__ void compute_extreme_point(int numCoords, float *grad, float *extreme_point)// [numCoords][numObjs]
+__host__ __device__ void compute_extreme_point(float *grad, float *extreme_point)// [numCoords][numObjs]
                                                      
 {
-    int i;
     int imin = 0;
     float min_val = grad[0];
-    for (i = 1; i < numCoords; i++)
+    int i = threadIdx.x;
+
+    if (grad[i] < min_val) 
     {
-        if (grad[i] < min_val) 
-        {
-            min_val = grad[i];
-            imin = i;
-        }
+        min_val = grad[i];
+        imin = i;
     }
     extreme_point[imin] = 1;
 }
 
 
-__host__ __device__ void away_step(int numCoords, float *grad, float *extreme_point)// [numCoords][numObjs]                 
+__host__ __device__ void away_step(float *grad, float *extreme_point)// [numCoords][numObjs]                 
 {
-    int i;
-    int imin = 0;
-    float min_val = grad[0];
-    for (i = 1; i < numCoords; i++)
+    int i = threadIdx.x;
+    int imax = 0;
+    float max_val = grad[0];
+    if (grad[i] > max_val) 
     {
-        if (grad[i] < min_val) 
-        {
-            min_val = grad[i];
-            imin = i;
-        }
+        max_val = grad[i];
+        imax = i;
     }
-    extreme_point[imin] = 1;
+    extreme_point[imax] = 1;
 }
 
-__host__ __device__ void step_size(int numCoords, float *grad, float *extreme_point)// [numCoords][numObjs]
+__host__ __device__ float step_size(int numCoords, float *grad, float *x_t, float **objects, float gama_max)// [numCoords][numObjs]
                                                      
 {
-    int i;
-    int imin = 0;
-    float min_val = grad[0];
-    for (i = 1; i < numCoords; i++)
-    {
-        if (grad[i] < min_val) 
-        {
-            min_val = grad[i];
-            imin = i;
-        }
-    }
-    extreme_point[imin] = 1;
+    float tau = 1.5;
+
+    float mu = 0.5;
+
+    float M = mu * L;
+
+    float n_dt;
+
+    float f_new;
+
+    VectorNorm<<1,N>>(dt, n_dt);
+
+    n_dt = n_dt * n_dt;
+
+    gama = min((g_t / (M * n_dt)), gama_max);
+
+    primal_function(x_t, numCoords, objects, &f_new)
+
+    Q_t = f_new - gama * g_t + 0.5 * M * n_dt * gama**2;
+
+    VectorSubWithScale<<<1, N>>>(x_t, d_t, x_t, gama);
+
+    primal_function(x_t, numCoords, objects, &f_new)
+
+    while f_new > Q_t:
+
+        M = tau * M;
+
+        gama = min((g_t / (M * n_dt)), gama_max);
+
+        primal_function(x_t, numCoords, objects, &f_new);
+
+        Q_t = fnew - gama * g_t + 0.5 * M * n_dt * gama**2;
+
+        VectorSubWithScale<<<1, N>>>(x_t, d_t, x_t, gama);
+        
+        primal_function(x_t, numCoords, objects, &f_new)
+
+    return gama;
 }
 
 /*----< euclid_dist_2() >----------------------------------------------------*/
@@ -66,48 +88,50 @@ __host__ __device__ inline static float gauss_kernel(int numCoords,
 {
     int i;
     float ans = 0.0;
-    float d = euclid_dist_2(numCoords, numObjs, objectId1, objectId2, objects);
-    ans = (1 + sqrt(3) * d) * exp(-sqrt(3) * d);
+    euclid_dist_2<<<1, N>>>(numCoords, numObjs, objectId1, objectId2, objects, &ans);
+    ans = (1 + sqrt(3) * ans) * exp(-sqrt(3) * ans);
     return (ans);
 }
 
 /*----< euclid_dist_2() >----------------------------------------------------*/
 /* square of Euclid distance between two multi-dimensional points            */
-__host__ __device__ inline static float euclid_dist_2(int numCoords,
-                                                      int numObjs,
+__global__ inline static void euclid_dist_2(int numObjs,
                                                       int objectId1,
                                                       int objectId2,
-                                                      float *objects) // [numCoords][numObjs]
+                                                      float *objects, float *res) // [numCoords][numObjs]
 {
-    int i;
-    float ans = 0.0;
-
-    for (i = 0; i < numCoords; i++)
-    {
-        ans += (objects[numObjs * i + objectId1] - objects[numObjs * i + objectId2]) *
+    int i = threadIdx.x;
+    float ans;
+    ans += (objects[numObjs * i + objectId1] - objects[numObjs * i + objectId2]) *
                (objects[numObjs * i + objectId1] - objects[numObjs * i + objectId2]);
-    }
-
-    return sqrt(ans);
+    &res = sqrt(ans);
 }
 
 /*----< euclid_dist_2() >----------------------------------------------------*/
 /* square of Euclid distance between two multi-dimensional points            */
 __host__ __device__ inline static float primal_function(
     float *x,
-    float *mean, // [numCoords][numObjs]
-    int numCoords)
+    int numCoords,
+    float **objects,
+    float *primal)
 
 {
     int i;
-    float ans = 0.0;
-    for (i = 0; i < numCoords; i++)
-    {
-        ans += (objects[numObjs * i + objectId] - clusters[numClusters * i + clusterId]) *
-               (objects[numObjs * i + objectId] - clusters[numClusters * i + clusterId]);
-    }
+    int k;
+    int j;
 
-    return (ans);
+    float v;
+    VecSub<<1, N>>(x, mu, &v)
+
+    for (k = 0; k < numObjs; k++)
+    {
+        float kerSum = 0;
+        for (j = 0; j < numObjs; j++)
+        {   
+            kerSum += gauss_kernel(numCoords, numObjs, *objects, k, j);
+        }
+        &primal += kerSum * v[k];
+    }
 }
 
 /*----< euclid_dist_2() >----------------------------------------------------*/
@@ -125,10 +149,7 @@ __host__ __device__ inline static void gradient_function(int numCoords,
     int j;
 
     float v;
-    for (i = 0; i < numCoords; i++)
-    {
-        v[i] = x[i] - mu[i];
-    }
+    VecSub<<1, N>>(x, mu, &v)
 
     for (k = 0; k < numObjs; k++)
     {
@@ -143,109 +164,164 @@ __host__ __device__ inline static void gradient_function(int numCoords,
 
 /*----< euclid_dist_2() >----------------------------------------------------*/
 /* square of Euclid distance between two multi-dimensional points            */
-__host__ __device__ void local_linear_minimization_oracle(int numCoords, float *grad, float *extreme_point)// [numCoords][numObjs]
+__host__ __device__ void local_linear_minimization_oracle(int numCoords, int numObjs, float *gradient, float **cache, float *res)// [numCoords][numObjs]
                                                      
 {
     int i;
     int imin = 0;
-    float min_val = grad[0];
-    for (i = 1; i < numCoords; i++)
+    float min_val = 0;
+    for (i = 1; i < numObjs; i++)
     {
-        if (grad[i] < min_val) 
+        float innerVal = 0;
+        vectorInner<<<1, N>>>(cache[i], gradient, &innerVal)
+        if (innerVal < min_val)
         {
-            min_val = grad[i];
             imin = i;
+            min_val = innerVal;
         }
     }
-    extreme_point[imin] = 1;
+    for (i = 1; i < numObjs; i++) res[i] = 0;
+    res[imin] = 1;
 }
 
-__host__ __device__ inline static void bpcg_optimizer(float *x0, int maxIter, cuda_cache cuda)
+__host__ __device__ void update_x(cuda_cache *cache, float *x_t, float step)
+{
+    int i = threadIdx.x;
+    int j = 0;
+    for(j=0;j<cache.len;j++)
+    {
+        x_t[i] = x_t[i] - cache.alpha[j] * cache[i][j];
+    }
+}
+
+__host__ __device__ inline static void bpcg_optimizer(float* x0, int maxIter, cuda_cache cache, int dim, float* x_t, float **objects)
 {
     int L = 1;
-    int i;
+    int i = 0;
     int number_drop;
+    size_t size = dim * sizeof(float);
+    int vertex_added = 0;
+    // Allocate input vectors h_A and h_B in host memory
+    float* gradient = (float*)malloc(size);
+    float* d_FW = (float*)malloc(size);
+    float* d_LFW = (float*)malloc(size);
+    float* d_AW = (float*)malloc(size);
+    float* direction = (float*)malloc(size);
+
+    float* d_grad;
+    float* dd_FW;
+    float* dd_LFW;
+    float* dd_AW;
+    float d_direction;
+    float primal;
+
+    cudaMalloc(&d_gradient, size);
+    cudaMalloc(&dd_FW, size);
+    cudaMalloc(&dd_LFW, size);
+    cudaMalloc(&dd_AW, size);
+    cudaMalloc(&d_direction, size);
+
+    // Copy vectors from host memory to device memory
+    cudaMemcpy(d_grad, gradient, size, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_FW, dd_FW, size, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_LFW, dd_LFW, size, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_AW, dd_AW, size, cudaMemcpyHostToDevice);
+    cudaMemcpy(direction, d_direction, size, cudaMemcpyHostToDevice);
 
     while (i < maxIter)
     {
         /* code */
-        float *grad;
-        gradient_function(numCoords, numObjs, numClusters, &objects, &mu, &x, &gradient );
-        int id_FW  = local_linear_minimization_oracle(numCoords, *grad, *extreme_point);
-        int id_AW  = away_step( numCoords, *grad, *extreme_point);
-        int id_AW  = compute_extreme_point(numCoords, *grad, *extreme_point);
+        gradient_function(numCoords, numObjs, objects, mu, x_t,  d_grad );
 
-        float *dual_gap;
-        gpu_matrix_mult(int *a,int *b, int *c, int m, int n, int k);
+        cudaMemset(dd_FW, 0, dim);
 
-        float *away_gap;
-        gpu_matrix_mult(int *a,int *b, int *c, int m, int n, int k);
+        cudaMemset(dd_LFW, 0, dim);
+
+        cudaMemset(dd_AW, 0, dim);
+	
+        int id_LFW  = local_linear_minimization_oracle(numCoords, d_grad, extreme_point);
+
+        int id_AW  = away_step( numCoords, d_grad, extreme_point);
+
+        int id_FW  = compute_extreme_point(numCoords, d_grad, extreme_point);
+
+        dd_FW[id_FW] = 1;
+
+        dd_AW[id_AW] = 1;
+
+        dd_LFW[id_LFW] = 1;
+
+        float dual_gap;
+
+        float away_gap;
+
+        VectorSub<<<1, N>>>(dd_FW, dd_AW, direction);
+
+        VectorInner<<<1, N>>>(direction, d_grad, &dual_gap);
+
+        VectorSub<<<1, N>>>(dd_LFW, dd_AW, direction);
+
+        VectorInner<<<1, N>>>(direction, d_grad, &away_gap);
 
         if (away_gap > dual_gap)
         {
-             d_t = a_W - s_FW
 
-            d = alpha_t[id_A]
+            VectorSub<<<1, N>>>(dd_LFW, dd_AW, direction);
 
-            gap = np.dot(d_t.T,  grad)[0,0]
+            float d = alpha_t[id_A];
 
-            step, _ = take_step_size(f=f, d_t=d_t, x_t=x_t, g_t=gap, L=L, gama_max=d)
+            float gap = VectorInner<<<1, N>>>(d_t,  d_grad);
+
+            float step = step_size(dim, grad, x_t, objects, gama_max);
            
-            if step < d:
+            if (step < d)
+            {
+                float a_FW = cache.alpha[id_FW] + step;
+                set_alpha(id_FW, cache, a_FW);
+                float a_FW = cache.alpha[id_FW] - step;
+                set_alpha(id_A, cache, a_FW);
+            }
+            else
+            {
 
-                alpha_t[id_FW] = alpha_t[id_FW] + step
+                float a_FW = cache.alpha[id_FW] + d;
 
-                alpha_t[id_A] = alpha_t[id_A] - step
+                set_alpha(id_FW, cache, a_FW);
 
-            else:
+                set_alpha(id_A, cache, 0);
 
-                alpha_t[id_FW] = alpha_t[id_FW] + d
-
-                alpha_t[id_A] = 0.0
-
-                I_active.remove(id_A);
-
-                number_drop = number_drop + 1
+                number_drop = number_drop + 1;
+            }
 
         } 
         else 
         {
-            d_t = x_t - w_FW
 
-            gap = np.dot(d_t.T,  grad)[0,0]
+            VectorSub<<<1, N>>>(dd_FW, dd_AW, direction);
 
-            step, _ = take_step_size(f=f, d_t=d_t, x_t=x_t, g_t=gap, L=L, gama_max=1)
+            VectorInner<<<1, N>>>(direction, d_grad, gap);
 
-            alpha_t = (1-step) * alpha_t 
+            float step = step_size(dim, grad, x_t, objects, gama_max);
 
-            alpha_t[id_W] = alpha_t[id_W] + step
+            update_alpha(id_W, cache, step);
 
-            vertex_added = True
-
-            if step > 1-eps:
-                I_active = [id_W]
-                alpha_t = alpha_t * 0
-                alpha_t[id_W] = 1
+            vertex_added = 1;
 
         }
 
-        I_active =  find(np.argwhere(alpha_t > 0))
-        
-        if vertex_added:
-            I_active_lst.append(I_active)
-            alpha_lst.append(alpha_t)
+        update_x<<<1, N>>>(cuda_cache *cache, float *x_t, float step);
 
-        x_t = update_x(alpha_t, I_active)
+        primal_function(x_t, numCoords, objects, &primal);
 
-        primal= f(x_t)
+        i = i + 1;
 
-        fvalues[it-1] = primal
-
-        if len(I_active) > crr:
-            crr = crr + 1
-            xs.append(x_t)
-
-        i++;
+        printf("%x \n", primal);
     }
+
+    cudaMemcpy(h_C, d_C, size, cudaMemcpyDeviceToHost);
+    // Free device memory
+    cudaFree(d_A);
+    cudaFree(d_B);
+    cudaFree(d_C);
     
 }
