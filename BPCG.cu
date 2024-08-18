@@ -8,7 +8,6 @@
 
 void primal_function(int, int, float*, float*, float*, float*, int);
 void gradient_function(int, int, float**, float, float*, float*, int);
-__global__  void euclid_dist_2(int, int, int, int, float**, float*); // [numCoords][numObjs]
 __host__ __device__
 float euclid_dist_2(int numCoords, int numObjs, float* objects, int objectId1, int objectId2);
 
@@ -28,7 +27,7 @@ __global__ void sum_vectors(const float* v1, const float* v2, float* out, size_t
 
 // In this case the number of GPU threads is smaller than the number of elements in the domain:
 //  every iterates over multple elements to ensure than the entire domain is covered
-__global__ void sub_vectors(const float* v1, const float* v2, float* out, float *scale, size_t num_elements) {
+__global__ void substr_vectors_with_scale(const float* v1, const float* v2, float* out, float *scale, size_t num_elements) {
     // compute current thread id
     int xIndex = blockIdx.x * blockDim.x + threadIdx.x;
     // iterate over vector: grid can be smaller than vector, it is therefore
@@ -131,32 +130,6 @@ __global__  void VecSquaredNorm(float* a, int n, float* res)
     }
 }
 
-__global__
-// Kernel definition
-void VectorSubWithScale(float* A, float* B, float* C, float* scale, int dim)
-{
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-
-    __shared__ float product[DSIZE];
-
-    if (i < dim)
-    {
-        
-        product[i] = A[i] - B[i] * (*scale);
-
-        __syncthreads();
-    }
-
-    if (threadIdx.x == 0)
-    {
-        for (int k = 0; k < DSIZE; k++)
-        {
-             C[k] = product[k];
-        }
-    }
-}
-
-
 void compute_extreme_point(float* d_vector, int *active, float* d, int* d_max_index)
 {
     const unsigned int array_size = DSIZE;
@@ -208,8 +181,6 @@ float step_size(int numCoords, int numObjs, int blocksPerGrid, int threadsPerBlo
     checkCuda(cudaMalloc(&d_norm, sizeof(float)));
     checkCuda(cudaMalloc(&d_x_inter, DSIZE * sizeof(float)));
 
-    // checkCuda(cudaMemcpy(d_norm, norm, sizeof(float), cudaMemcpyHostToDevice));
-
     VecSquaredNorm <<<blocksPerGrid, threadsPerBlock >>> (d_t, dim, d_norm);
 
     cudaDeviceSynchronize(); checkLastCudaError();
@@ -240,7 +211,7 @@ float step_size(int numCoords, int numObjs, int blocksPerGrid, int threadsPerBlo
 
     checkCuda(cudaMemcpy(d_gama, &gama, sizeof(float), cudaMemcpyHostToDevice));
 
-    sub_vectors <<<blocksPerGrid, threadsPerBlock >>> (x_t, d_t, d_x_inter, d_gama, dim);
+    substr_vectors_with_scale <<<blocksPerGrid, threadsPerBlock >>> (x_t, d_t, d_x_inter, d_gama, dim);
     cudaDeviceSynchronize(); checkLastCudaError();
 
     substr_vectors <<<blocksPerGrid, threadsPerBlock >>> (d_x_inter, probs, dv, dim);
@@ -337,11 +308,7 @@ __global__ void hibertspace(int numCoords, int numObjs, float* objects, float* k
 
     float tmp = euclid_dist_2(numCoords, numObjs, objects, idx, id);
 
-    //printf("%f temp = \n", tmp);
-
     ans[idx] = (1 + sqrtf(3) * tmp) * exp(-sqrtf(3) * tmp);
-
-    // (1 + np.sqrt(3) * d)* np.exp(-np.sqrt(3) * d)
 
     __syncthreads();
 
@@ -349,7 +316,6 @@ __global__ void hibertspace(int numCoords, int numObjs, float* objects, float* k
     {
         for (int k = 0; k < DSIZE; k++)
         {
-           // printf("%f ans k\n", ans[k]);
             atomicAdd(&kernel[id], ans[k] * v[k]);
         }
     }
