@@ -187,8 +187,6 @@ float step_size(int numCoords, int numObjs, int blocksPerGrid, int threadsPerBlo
 
     checkCuda(cudaMemcpy(norm, d_norm, sizeof(float), cudaMemcpyDeviceToHost));
 
-    checkCuda(cudaMemcpy(v, dv, dim * sizeof(float), cudaMemcpyDeviceToHost));
-
     float gama = 0;
     
     gama = MIN(g_t / (M * (*norm)), *gama_max);
@@ -216,7 +214,6 @@ float step_size(int numCoords, int numObjs, int blocksPerGrid, int threadsPerBlo
 
     substr_vectors <<<blocksPerGrid, threadsPerBlock >>> (d_x_inter, probs, dv, dim);
     cudaDeviceSynchronize(); checkLastCudaError();
-    checkCuda(cudaMemcpy(v, dv, dim * sizeof(float), cudaMemcpyDeviceToHost));
 
     primal_function(numCoords, numObjs, objects, dv, grad, f_new, dim);
     cudaDeviceSynchronize(); checkLastCudaError();
@@ -237,7 +234,7 @@ float step_size(int numCoords, int numObjs, int blocksPerGrid, int threadsPerBlo
         float h_d[DSIZE] = { 0 };
 
 
-        VectorSubWithScale <<<blocksPerGrid, threadsPerBlock >>> (x_t, d_t, d_x_inter, d_gama, dim);
+        substr_vectors_with_scale <<<blocksPerGrid, threadsPerBlock >>> (x_t, d_t, d_x_inter, d_gama, dim);
         cudaDeviceSynchronize(); checkLastCudaError();
 
 
@@ -247,16 +244,12 @@ float step_size(int numCoords, int numObjs, int blocksPerGrid, int threadsPerBlo
         substr_vectors <<<blocksPerGrid, threadsPerBlock >>> (d_x_inter, probs, dv, dim); 
         cudaDeviceSynchronize(); checkLastCudaError();
 
-        checkCuda(cudaMemcpy(v, dv, dim * sizeof(float), cudaMemcpyDeviceToHost));
-
         primal_function(numCoords, numObjs, objects, dv, grad, f_new, dim);
 
         cudaDeviceSynchronize(); checkLastCudaError();
 
         checkCuda(cudaMemcpy(d_t, h_d, DSIZE * sizeof(float), cudaMemcpyHostToDevice));
 
-
-        
 
     }
 
@@ -324,8 +317,6 @@ __global__ void hibertspace(int numCoords, int numObjs, float* objects, float* k
 
 void primal_function(int numCoords, int numObjs, float* objects, float* v, float* d_grad, float* primal, int dim)
 {
-
-    // extern __shared__ float ans;
 
     float* kernel = (float*)malloc(dim * sizeof(float));
     float* d_kernel;
@@ -425,14 +416,11 @@ void local_away_vertex(float* cache, int* active,  float* alpha, float* x, float
           }
       }
 
-       // max_idx_kernel <<<1, len >>>(d_inner, len, minIdx);
        cudaMemcpy(d_inner, inner, len * sizeof(float), cudaMemcpyHostToDevice);
-
        cudaDeviceSynchronize(); checkLastCudaError();
 
        int maxId = 0;
        int maxV = inner[0];
-
 
         for(int i = 0; i < l; i++)
         {
@@ -516,16 +504,11 @@ __global__  void update_x(float* alpha, float* cache, float* x_t, float step, fl
 
 __global__  void add_alpha(float* alpha, float *a, int *id, int n)
 {
-
     float mul = 1 - *a;
-
     for (int j = 0; j < n; j++)
     {
-
         alpha[j] = alpha[j] * mul;
-
     }
-
     alpha[*id] = alpha[*id] + *a;
 }
 
@@ -582,10 +565,7 @@ void bpcg_optimizer(int maxIter, float* cache, float* alpha, float* x_t, float**
     int k = 0;
     int j;
     int c_len = numObjs;
-    // size_t size = numObjs * sizeof(float);
-    size_t sizeVec = vecDim * sizeof(float);/*
-    float** dimObjects;
-    malloc2D(dimObjects, numCoords, numObjs, float);*/
+    size_t sizeVec = vecDim * sizeof(float);
     const int NM = numObjs * numCoords;
     float dimObjects[900] = { 0 };
     float h_alpha[DSIZE] = { 0 };
@@ -594,9 +574,7 @@ void bpcg_optimizer(int maxIter, float* cache, float* alpha, float* x_t, float**
     {
         for (j = 0; j < numObjs; j++)
         {
-            //dimObjects[i][j] = objects[j][i];
             dimObjects[numObjs * i + j] = objects[j][i];
-            //k = k + 1;
         }
     }
     int number_drop = 0;
@@ -611,8 +589,6 @@ void bpcg_optimizer(int maxIter, float* cache, float* alpha, float* x_t, float**
     float h_probs[DSIZE] = { 0 };
     float step = 0;
     float zero = 0;
-
-//    float *I_active;
 
     size_t vecSize = vecDim * sizeof(float);
    
@@ -656,21 +632,18 @@ void bpcg_optimizer(int maxIter, float* cache, float* alpha, float* x_t, float**
     checkCuda(cudaMalloc(&d_id_AW, sizeof(int)));
     int* id_AW = (int*)malloc(sizeof(int));
     *id_AW = 0;
-    //checkCuda(cudaMemcpy(d_id_AW, id_AW, sizeof(int), cudaMemcpyHostToDevice));
 
     // Define variable to store FW vertex 
     int* d_id_FW;
     checkCuda(cudaMalloc(&d_id_FW, sizeof(int)));
     int* id_FW = (int*)malloc(sizeof(int));
     *id_FW = 0;
-    //checkCuda(cudaMemcpy(d_id_FW, id_FW, sizeof(int), cudaMemcpyHostToDevice));
 
     // Define variable to store FW vertex 
     int* d_id_LFW;
     checkCuda(cudaMalloc(&d_id_LFW, sizeof(int)));
     int* id_LFW = (int*)malloc(sizeof(int));
     *id_LFW = 0;
-    //checkCuda(cudaMemcpy(d_id_LFW, id_LFW, sizeof(int), cudaMemcpyHostToDevice));
 
     float* dual_gap = (float*)malloc(sizeof(float));
     *dual_gap = 0;
@@ -715,31 +688,24 @@ void bpcg_optimizer(int maxIter, float* cache, float* alpha, float* x_t, float**
         checkCuda(cudaMemcpy(d_dual_gap, &zero, sizeof(float), cudaMemcpyHostToDevice));
         /* code */
         printf("start iteration \n");
-        checkCuda(cudaMemcpy(h_probs, probs, DSIZE *sizeof(float), cudaMemcpyDeviceToHost));
         // Caculate v = x - mu for gradient
         substr_vectors <<<blocksPerGrid, threadsPerBlock >>> (x_t, probs, dv, vecDim);
         cudaDeviceSynchronize(); checkLastCudaError();
-        checkCuda(cudaMemcpy(v, dv, vecSize, cudaMemcpyDeviceToHost));
 
         //Caculate gradient
         gradient_function(numCoords, numObjs, dimObjects, dv, grad, vecDim);
         checkCuda(cudaMemcpy(d_grad, grad, sizeVec, cudaMemcpyHostToDevice));
         cudaDeviceSynchronize(); checkLastCudaError();
-        printf("calc grad done C len = %d \n", c_len);
 
         // Local minimization oracle;
         local_LMO(cache, active, grad, dd_LFW, c_len, vecDim, d_id_LFW);
         cudaDeviceSynchronize(); checkLastCudaError();
         checkCuda(cudaMemcpy(id_LFW, d_id_LFW, sizeof(int), cudaMemcpyDeviceToHost));
 
-        printf("local LMO done   %d\n", vecDim);
-
        // Away step   
         local_away_vertex(cache, active, h_alpha, grad, dd_AW, c_len, vecDim, d_id_AW);
         cudaDeviceSynchronize(); checkLastCudaError();
         checkCuda(cudaMemcpy(id_AW, d_id_AW, sizeof(int), cudaMemcpyDeviceToHost));
-
-        checkCuda(cudaMemcpy(grad, d_grad, DSIZE * sizeof(float), cudaMemcpyDeviceToHost));
 
         // Linear minimization oracle over simplex
         compute_extreme_point(d_grad, active, dd_FW, d_id_FW);
@@ -747,14 +713,13 @@ void bpcg_optimizer(int maxIter, float* cache, float* alpha, float* x_t, float**
         checkCuda(cudaMemcpy(d_FW, dd_FW, DSIZE * sizeof(int), cudaMemcpyDeviceToHost));
         cudaDeviceSynchronize(); checkLastCudaError();
 
-        printf("Extreme id %d \n", *id_FW);
+       // printf("Extreme id %d \n", *id_FW);
         // caculate FW direction
         substr_vectors <<<blocksPerGrid, threadsPerBlock>>> (x_t, dd_FW, d_movingdirection, vecDim);
         cudaDeviceSynchronize(); checkLastCudaError();
 
         checkCuda(cudaMemcpy(movingdirection, d_movingdirection, DSIZE * sizeof(float), cudaMemcpyDeviceToHost));
 
-        checkCuda(cudaMemcpy(h_x, x_t, DSIZE * sizeof(float), cudaMemcpyDeviceToHost));
         checkCuda(cudaMemcpy(grad, d_grad, DSIZE * sizeof(float), cudaMemcpyDeviceToHost));
 
         checkCuda(cudaMemcpy(d_dual_gap, &zero, sizeof(float), cudaMemcpyHostToDevice));
@@ -762,6 +727,7 @@ void bpcg_optimizer(int maxIter, float* cache, float* alpha, float* x_t, float**
         // caculate dual gap
         VecInner<<<blocksPerGrid, threadsPerBlock >>> (d_movingdirection, d_grad, d_dual_gap, vecDim);
         cudaDeviceSynchronize(); checkLastCudaError();
+
         *dual_gap = 0;
         checkCuda(cudaMemcpy(dual_gap, d_dual_gap, sizeof(float), cudaMemcpyDeviceToHost));
 
@@ -770,9 +736,9 @@ void bpcg_optimizer(int maxIter, float* cache, float* alpha, float* x_t, float**
 
         checkCuda(cudaMemcpy(d_away_gap, &zero, sizeof(float), cudaMemcpyHostToDevice));
 
-
         VecInner<<<blocksPerGrid, threadsPerBlock >>> (d_movingdirection, d_grad, d_away_gap, vecDim);
         cudaDeviceSynchronize(); checkLastCudaError();
+
         *away_gap = 0;
         checkCuda(cudaMemcpy(away_gap, d_away_gap, sizeof(float), cudaMemcpyDeviceToHost));
 
@@ -787,8 +753,6 @@ void bpcg_optimizer(int maxIter, float* cache, float* alpha, float* x_t, float**
 
             checkCuda(cudaMemcpy(d, &alpha[*id_AW], sizeof(float), cudaMemcpyDeviceToHost));
 
-            checkCuda(cudaMemcpy(h_alpha, alpha, DSIZE * sizeof(float), cudaMemcpyDeviceToHost));
-
             substr_vectors <<<blocksPerGrid, threadsPerBlock >>> (x_t, probs, dv, vecDim);
 
             cudaDeviceSynchronize(); checkLastCudaError();
@@ -801,7 +765,6 @@ void bpcg_optimizer(int maxIter, float* cache, float* alpha, float* x_t, float**
             {
 
                 printf("DESCENT step \n", *id_FW);
-                // checkCuda(cudaMemcpy(d_step, &step, sizeof(float), cudaMemcpyHostToDevice));
 
                 checkCuda(cudaMemcpy(d, &alpha[*id_LFW], sizeof(float), cudaMemcpyDeviceToHost));
 
@@ -842,17 +805,12 @@ void bpcg_optimizer(int maxIter, float* cache, float* alpha, float* x_t, float**
         }
         else
         {
-            checkCuda(cudaMemcpy(h_x, x_t, DSIZE * sizeof(float), cudaMemcpyDeviceToHost));
-
-            checkCuda(cudaMemcpy(grad, d_grad, DSIZE * sizeof(float), cudaMemcpyDeviceToHost));
 
             printf("FW step \n");
 
             substr_vectors <<<blocksPerGrid, threadsPerBlock >>> (x_t, dd_FW, d_movingdirection, vecDim);
 
             cudaDeviceSynchronize(); checkLastCudaError();
-
-            checkCuda(cudaMemcpy(movingdirection, d_movingdirection, DSIZE * sizeof(float), cudaMemcpyDeviceToHost));
 
             printf("moving direction \n");
 
@@ -884,8 +842,6 @@ void bpcg_optimizer(int maxIter, float* cache, float* alpha, float* x_t, float**
 
             cudaDeviceSynchronize(); checkLastCudaError();
 
-            checkCuda(cudaMemcpy(h_alpha, alpha, DSIZE * sizeof(int), cudaMemcpyDeviceToHost));
-
         }
 
         printf("update x %d len \n", c_len);
@@ -898,11 +854,7 @@ void bpcg_optimizer(int maxIter, float* cache, float* alpha, float* x_t, float**
 
         cudaDeviceSynchronize(); checkLastCudaError();
 
-        checkCuda(cudaMemcpy(h_x, x_t, DSIZE * sizeof(float), cudaMemcpyDeviceToHost));
-
         substr_vectors << <blocksPerGrid, threadsPerBlock >> > (x_t, probs, dv, vecDim);
-
-        checkCuda(cudaMemcpy(v, dv, vecSize, cudaMemcpyDeviceToHost));
 
         primal_function(numCoords, numObjs, deviceObjects, dv, d_grad, primal, vecDim);
 
@@ -911,8 +863,6 @@ void bpcg_optimizer(int maxIter, float* cache, float* alpha, float* x_t, float**
         it = it + 1;
 
         printf("primal value at %.9f iteration %d \n", *primal, it);
-
-        checkCuda(cudaMemcpy(h_x, x_t, DSIZE * sizeof(float), cudaMemcpyDeviceToHost));
 
         checkCuda(cudaMemcpy(active, I_active, DSIZE * sizeof(float), cudaMemcpyDeviceToHost));
     }
