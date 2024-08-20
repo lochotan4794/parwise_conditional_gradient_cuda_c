@@ -22,6 +22,8 @@
 #define FLOAT_MIN -1.0f
 #define FLOAT_MAX  1e10f
 
+#define DEBUG 1
+
 
 //void mean(float**, float*, int, int);
 //void std_data(float**, float*, int, int);
@@ -63,10 +65,11 @@ inline void checkLastCudaError() {
 // void gradient_function(int numCoords, int numObjs, float **objects, float mu, float *x, float *gradient, int N );
 // void update_x(cuda_cache *cache, float *x_t, float step);
 
-void bpcg_optimizer(int, float*, float*, float*, float**, float*, int, int, int);
+void bpcg_optimizer(int, float*, float*, float*, float**, float*, int, int, int, float *);
 
 float** file_read(int, char*, int*, int*);
 int     file_write(char*, int, int, int, float**, int*);
+int file_log(char* filename,  float* logs);
 
 // __host__ __device__ inline static void VecAdd(float* A, float* B, float* C);
 // __host__ __device__ inline static void VecMul(float* A, float* B, float* C);

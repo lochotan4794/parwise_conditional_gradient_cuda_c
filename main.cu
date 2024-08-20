@@ -110,6 +110,8 @@ int main(int argc, char** argv) {
 
     //objects = (float**)malloc(sizeof(float) * numCoords * numObjs);
 
+
+
     if (objects == NULL) exit(1);
 
     normalize(objects, objects, numCoords, numObjs);
@@ -118,6 +120,8 @@ int main(int argc, char** argv) {
 
     float primals;
 
+    float *logs =  (float*)malloc(numObjs * sizeof(float));
+
 
     float* x_star = (float*)malloc(numObjs * sizeof(float));
 
@@ -125,7 +129,7 @@ int main(int argc, char** argv) {
 
     float* x0;
 
-    int maxIter = 100;
+    int maxIter = 30;
 
     int j;
 
@@ -190,7 +194,7 @@ int main(int argc, char** argv) {
 
     printf("Call BPCG \n");
 
-    bpcg_optimizer(maxIter, S, d_alpha, d_x_start, objects, d_probs, numObjs, numCoords, vecDim);
+    bpcg_optimizer(maxIter, S, d_alpha, d_x_start, objects, d_probs, numObjs, numCoords, vecDim, logs);
 
     /* Free the resources.*/
    // if (S) checkCuda(cudaFree(S));
@@ -202,7 +206,7 @@ int main(int argc, char** argv) {
 
    // cudaFree(&cache);
    // /* output: the coordinates of the cluster centres ----------------------*/
-   // file_write(filename, numClusters, numObjs, numCoords, clusters, membership);
+    file_log(filename, logs);
 
    // free(membership);
    // free(clusters[0]);

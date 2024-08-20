@@ -123,6 +123,26 @@ float** file_read(int isBinaryFile, /* flag: 0 or 1 */
     return objects;
 }
 
+
+/*---< file_write() >---------------------------------------------------------*/
+int file_log(char* filename,   /* input file name */
+    float* logs)  /* [numObjs] */
+{
+    FILE* fptr;
+    int i, j;
+    char outFileName[1024];
+
+    sprintf(outFileName, "%s.logs", filename);
+    printf("Writing membership of N=%d data objects to file \"%s\"\n",
+        DSIZE, outFileName);
+    fptr = fopen(outFileName, "w");
+    for (i = 0; i < DSIZE; i++)
+        fprintf(fptr, "%d %.9f\n", i, logs[i]);
+    fclose(fptr);
+
+    return 1;
+}
+
 /*---< file_write() >---------------------------------------------------------*/
 int file_write(char* filename,   /* input file name */
     int numClusters,  /* no. clusters */

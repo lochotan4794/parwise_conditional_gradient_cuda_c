@@ -3,6 +3,18 @@
 #include "BPCG.h"
 
 
+
+//
+//void mean(float** objects, float* mean, int numCoords, int numObjs)
+//{
+//
+//}
+//
+//void std_data(float** objects, float* std, int numCoords, int numObjs)
+//{
+//
+//}
+
 void normalize(float** objects, float** normalizedObjs, int numCoords, int numObjs)
 {
     float mean[3] = { 0 };// = (float* ) malloc(numCoords * sizeof(float));
