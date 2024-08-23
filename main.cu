@@ -103,11 +103,11 @@ int main(int argc, char** argv) {
     numClusters = 0;
     isBinaryFile = 0;
     is_output_timing = 0;
-    filename = "3D100.txt";
+    filename = "3D1000.txt";
 
     /* read data points from file ------------------------------------------*/
     objects = file_read(isBinaryFile, filename, &numObjs, &numCoords);
-
+      
     //objects = (float**)malloc(sizeof(float) * numCoords * numObjs);
 
 
@@ -120,7 +120,9 @@ int main(int argc, char** argv) {
 
     float primals;
 
-    float *logs =  (float*)malloc(numObjs * sizeof(float));
+    //float *logs =  (float*)malloc(numObjs * sizeof(float));
+
+    float logs[DSIZE] = { 0 };
 
 
     float* x_star = (float*)malloc(numObjs * sizeof(float));
@@ -137,10 +139,11 @@ int main(int argc, char** argv) {
 
     size_t size = vecDim * sizeof(float);
     float alpha[DSIZE] = {0 };
+    //float* alpha = (float *) malloc(DSIZE * sizeof(float));
 
     // memset(x_star, 0, size);
     // memset(probs, float(1)/numObjs, sizeof(x_star[0]));
-    for (j = 0; j < vecDim; j++)
+    for (j = 0; j < DSIZE; j++)
     {
         x_star[j] = 0.0;
         probs[j] = 1.0 / float(vecDim);
@@ -194,19 +197,24 @@ int main(int argc, char** argv) {
 
     printf("Call BPCG \n");
 
+    cudaDeviceSynchronize();
+
     bpcg_optimizer(maxIter, S, d_alpha, d_x_start, objects, d_probs, numObjs, numCoords, vecDim, logs);
+
+    //cudaDeviceSynchronize();
 
     /* Free the resources.*/
    // if (S) checkCuda(cudaFree(S));
    // if (d_0) checkCuda(cudaFree(d_0));
    // if (h_0) free(h_0);
 
-   // free(objects[0]);
-   // free(objects);
+   free(objects[0]);
+   free(objects);
+   //free(d_x_start);
 
    // cudaFree(&cache);
    // /* output: the coordinates of the cluster centres ----------------------*/
-    file_log(filename, logs);
+   (void) file_log(filename, logs);
 
    // free(membership);
    // free(clusters[0]);

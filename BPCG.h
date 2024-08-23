@@ -9,20 +9,20 @@
 #include <random>
 #include <chrono>
 
-#define MAX_CACHE_SIZE 5
+#define MAX_CACHE_SIZE 1000
 #define THREAD_PER_BLOCK 100
 
 
-#define DSIZE 100
+#define DSIZE 1000
 // nTPB should be a power-of-2
-#define nTPB 64
-#define MAX_KERNEL_BLOCKS 100
+#define nTPB 256
+#define MAX_KERNEL_BLOCKS 1000
 #define MAX_BLOCKS ((DSIZE/nTPB)+1)
 #define MIN(a,b) ((a>b)?b:a)
-#define FLOAT_MIN -1.0f
+#define FLOAT_MIN -1e10f
 #define FLOAT_MAX  1e10f
 
-#define DEBUG 1
+#define DEBUG 0
 
 
 //void mean(float**, float*, int, int);
